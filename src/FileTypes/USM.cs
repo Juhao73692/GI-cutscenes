@@ -108,12 +108,10 @@ namespace GICutscenes.FileTypes
             long fileSize = filePointer.Length;
             Info info = new();
             Console.WriteLine($"Demuxing {_filename} : extracting video and audio...");
-            int frameCounter = 0;
-            int successCounter = 0;
+
             Dictionary<string, BinaryWriter> fileStreams = new(); // File paths as keys
             Dictionary<string, List<string>> filePaths = new();
             string path;
-            byte[] videoFrames = [];
             while (fileSize > 0)
             {
                 byte[] byteBlock = new byte[32];
@@ -148,55 +146,14 @@ namespace GICutscenes.FileTypes
                                 if (videoExtract)
                                 {
                                     MaskVideo(ref data, size);
-                                    videoFrames = [.. videoFrames, .. data];
-                                    // path = Path.Combine(outputDir, _filename[..^4] + ".ivf");
-                                    // if (!fileStreams.ContainsKey(path))
-                                    // {
-                                    //     fileStreams.Add(path, new BinaryWriter(new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read)));
-                                    //     if (!filePaths.ContainsKey("ivf")) filePaths.Add("ivf", new List<string> { path });
-                                    //     else filePaths["ivf"].Add(path);
-                                    // }
-                                    // fileStreams[path].Write(data);
-
-
-                                    if (++frameCounter % 100 == 0)
+                                    path = Path.Combine(outputDir, _filename[..^4] + ".ivf");
+                                    if (!fileStreams.ContainsKey(path))
                                     {
-                                        // use ffmpeg to check validity
-
-                                        // fileStreams[path].Flush();
-                                        // ((FileStream)fileStreams[path].BaseStream).Flush(true); // .NET Core / .NET 5+ 可选，强制写入盘（如果可用）
-                                        // // 调用验证函数（等待不超过 1 秒）
-                                        // var (ok, stderr) = Checker.ValidateIvfWithFfmpeg(path, 1000);
-                                        // if (!ok)
-                                        // {
-                                        //     Console.WriteLine($"Warning: At frame {counter}, ffmpeg reported decode issues for {path}: {stderr?.Split('\n').FirstOrDefault()}");
-                                        //     // return filePaths;
-                                        // }
-                                        // // return filePaths;
-
-                                        // combine List<byte[]> into a single byte[] and validate
-                                        Console.WriteLine($"Validating extracted video frames at frame {frameCounter}...");
-                                        var (ok, stderr) = Checker.ValidateIvfWithFfmpegBytes(videoFrames, 500);
-
-                                        if (!ok)
-                                        {
-                                            var error = stderr.Split('\n')[0];
-                                            Console.WriteLine("ffmpeg reports decoding issues: " + error);
-                                            if (error != "ffmpeg-timeout")
-                                            {
-                                                return filePaths;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            Console.WriteLine("ffmpeg decode looks OK (no fatal errors).");
-                                            if (++successCounter >= 2)
-                                            {
-                                                return filePaths;
-                                            }
-                                        }
-                                        // return filePaths;
+                                        fileStreams.Add(path, new BinaryWriter(new FileStream(path, FileMode.Create, FileAccess.Write)));
+                                        if (!filePaths.ContainsKey("ivf")) filePaths.Add("ivf", new List<string>{path});
+                                        else filePaths["ivf"].Add(path);
                                     }
+                                    fileStreams[path].Write(data);
                                 }
                                 break;
                             default: // Not implemented, we don't have any uses for it
