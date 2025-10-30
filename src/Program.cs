@@ -115,6 +115,18 @@ namespace GICutscenes
                 description: "Show stack trace when throw exception.");
             stackTraceOption.AddAlias("-st");
 
+            var resumeOption = new Option<ulong>(
+                name: "--resume",
+                description: "The key start value when trying to demux.");
+            resumeOption.SetDefaultValue(1000000000000000);
+            resumeOption.AddAlias("-r");
+
+            var endOption = new Option<ulong>(
+                name: "--end",
+                description: "The key end value when trying to demux.");
+            endOption.SetDefaultValue(9999999999999999);
+            endOption.AddAlias("-en");
+
             var rootCommand = new RootCommand("A command line program playing with the cutscenes files (USM) from Genshin Impact.");
 
             rootCommand.AddGlobalOption(stackTraceOption);
@@ -133,7 +145,12 @@ namespace GICutscenes
                 noCleanupOption,
                 audioLangOption
             };
-
+            var ScanKeyOfUsmCommand = new Command("scanKeyOfUsm", "Brutely scan the key of a specified .usm file")
+            {
+                demuxFileOption,
+                resumeOption,
+                endOption
+            };
             var batchDemuxCommand = new Command("batchDemux", "Tries to demux all .usm files in the specified folder")
             {
                 usmFolderArg,
@@ -164,6 +181,7 @@ namespace GICutscenes
             var resetCommand = new Command("reset", "Reset 'appsettings.json' file to default.");
 
             rootCommand.AddCommand(demuxUsmCommand);
+            rootCommand.AddCommand(ScanKeyOfUsmCommand);
             rootCommand.AddCommand(batchDemuxCommand);
             rootCommand.AddCommand(convertHcaCommand);
             rootCommand.AddCommand(updateCommand);
@@ -179,6 +197,16 @@ namespace GICutscenes
                 DemuxUsmCommand(file, key1, key2, output, engine, merge, subs, noCleanup, audioFormat, videoFormat, audioLang);
             }, demuxFileOption, key1Option, key2Option, outputFolderOption, mkvEngineOption, mergeOption, subsOption, noCleanupOption, audioFormatOption, videoFormatOption, audioLangOption);
 
+            ScanKeyOfUsmCommand.SetHandler((FileInfo file, ulong resume, ulong end) =>
+            {
+                bool success = ScanKeyOfUsm(file, resume, end);
+                if (!success)
+                {
+                    Console.WriteLine("No valid key could be found in the specified range:");
+                    Console.WriteLine($"{resume} ~ {end}.");
+                }
+                // Console.WriteLine($"Try demux result: {success}");
+            }, demuxFileOption, resumeOption, endOption);
 
             batchDemuxCommand.SetHandler((DirectoryInfo inputDir, DirectoryInfo? outputDir, string engine, bool merge, bool subs, bool noCleanup, string audioFormat, string videoFormat, string audioLang) =>
             {
@@ -284,7 +312,16 @@ namespace GICutscenes
                 Directory.Delete(Path.Combine(outputArg, "Subs"), true);
             }
         }
-
+        private static bool ScanKeyOfUsm(FileInfo file, ulong resume = 1000000000000000, ulong end = 9999999999999999)
+        {
+            // Console.WriteLine($"Program.TryDemux called with resume={resume}, end={end}");
+            if (file == null) throw new ArgumentNullException(nameof(file), "No file provided.");
+            if (!file.Exists) throw new ArgumentException("File {0} does not exist.", file.Name);
+            if (!file.Name.EndsWith(".usm"))
+                throw new ArgumentException($"File {file.Name} provided isn't a .usm file.");
+            
+            return Demuxer.ScanKeyOfUsm(file.FullName, resume, end);
+        }
         private static void BatchDemuxCommand(DirectoryInfo inputDir, DirectoryInfo? outputDir, string engine, bool merge, bool subs, bool noCleanup, string audioFormat, string videoFormat, string audioLang)
         {
             if (inputDir is not { Exists: true }) throw new DirectoryNotFoundException("Input directory is invalid.");

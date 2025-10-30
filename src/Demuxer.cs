@@ -89,7 +89,36 @@ namespace GICutscenes
             byte[] key2 = keyArray[4..];
             return (key1, key2);
         }
-
+        public static bool ScanKeyOfUsm(string filenameArg, ulong resume = 1000000000000000, ulong end = 9999999999999999)
+        {
+            // Console.WriteLine($"Demuxer.TryDemux called with resume={resume}, end={end}");
+            if (!File.Exists(filenameArg)) throw new FileNotFoundException($"File {filenameArg} doesn't exist...");
+            string filename = Path.GetFileName(filenameArg);
+            ulong fkey = EncryptionKeyInFilename(filename);
+            for (ulong vkey = resume; vkey <= end; vkey++)
+            {
+                if (vkey % 100 == 0)
+                {
+                    Console.WriteLine($"Trying vkey: {vkey}");
+                }
+                ulong finalKey = 0x100000000000000;
+                if ((fkey + vkey & 0xFFFFFFFFFFFFFF) != 0) finalKey = fkey + vkey & 0xFFFFFFFFFFFFFF;
+                (byte[], byte[])? split = KeySplitter(finalKey);
+                if (split == null) continue;
+                byte[] key1, key2;
+                key1 = split.Value.Item1;
+                key2 = split.Value.Item2;
+                // Console.WriteLine($"Trying keys: {fkey:X14} + {vkey:X14} = {finalKey:X14}");
+                USM file = new(filenameArg, key1, key2);
+                bool success = file.TryDemux();  // TODO: Return file list for easier parsing
+                if (success)
+                {
+                    Console.WriteLine($"Success with vkey: {vkey}");
+                    return success;
+                }
+            }
+            return false;
+        }
         public static bool Demux(string filenameArg, byte[] key1Arg, byte[] key2Arg, string output)
         {
             if (!File.Exists(filenameArg)) throw new FileNotFoundException($"File {filenameArg} doesn't exist...");
@@ -108,7 +137,7 @@ namespace GICutscenes
                 key1 = key1Arg;
                 key2 = key2Arg;
             }
-
+            Console.WriteLine($"Key from filename:{EncryptionKeyInFilename(filename)}");
             USM file = new(filenameArg, key1, key2);
             Dictionary<string, List<string>> filePaths = file.Demux(true, true, output);  // TODO: Return file list for easier parsing
 
