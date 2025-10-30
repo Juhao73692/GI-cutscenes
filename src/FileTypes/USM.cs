@@ -108,10 +108,12 @@ namespace GICutscenes.FileTypes
             long fileSize = filePointer.Length;
             Info info = new();
             Console.WriteLine($"Demuxing {_filename} : extracting video and audio...");
-
+            int frameCounter = 0;
+            int successCounter = 0;
             Dictionary<string, BinaryWriter> fileStreams = new(); // File paths as keys
             Dictionary<string, List<string>> filePaths = new();
             string path;
+            byte[] videoFrames = [];
             while (fileSize > 0)
             {
                 byte[] byteBlock = new byte[32];
@@ -146,14 +148,55 @@ namespace GICutscenes.FileTypes
                                 if (videoExtract)
                                 {
                                     MaskVideo(ref data, size);
-                                    path = Path.Combine(outputDir, _filename[..^4] + ".ivf");
-                                    if (!fileStreams.ContainsKey(path))
+                                    videoFrames = [.. videoFrames, .. data];
+                                    // path = Path.Combine(outputDir, _filename[..^4] + ".ivf");
+                                    // if (!fileStreams.ContainsKey(path))
+                                    // {
+                                    //     fileStreams.Add(path, new BinaryWriter(new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read)));
+                                    //     if (!filePaths.ContainsKey("ivf")) filePaths.Add("ivf", new List<string> { path });
+                                    //     else filePaths["ivf"].Add(path);
+                                    // }
+                                    // fileStreams[path].Write(data);
+
+
+                                    if (++frameCounter % 100 == 0)
                                     {
-                                        fileStreams.Add(path, new BinaryWriter(new FileStream(path, FileMode.Create, FileAccess.Write)));
-                                        if (!filePaths.ContainsKey("ivf")) filePaths.Add("ivf", new List<string>{path});
-                                        else filePaths["ivf"].Add(path);
+                                        // use ffmpeg to check validity
+
+                                        // fileStreams[path].Flush();
+                                        // ((FileStream)fileStreams[path].BaseStream).Flush(true); // .NET Core / .NET 5+ 可选，强制写入盘（如果可用）
+                                        // // 调用验证函数（等待不超过 1 秒）
+                                        // var (ok, stderr) = Checker.ValidateIvfWithFfmpeg(path, 1000);
+                                        // if (!ok)
+                                        // {
+                                        //     Console.WriteLine($"Warning: At frame {counter}, ffmpeg reported decode issues for {path}: {stderr?.Split('\n').FirstOrDefault()}");
+                                        //     // return filePaths;
+                                        // }
+                                        // // return filePaths;
+
+                                        // combine List<byte[]> into a single byte[] and validate
+                                        Console.WriteLine($"Validating extracted video frames at frame {frameCounter}...");
+                                        var (ok, stderr) = Checker.ValidateIvfWithFfmpegBytes(videoFrames, 500);
+
+                                        if (!ok)
+                                        {
+                                            var error = stderr.Split('\n')[0];
+                                            Console.WriteLine("ffmpeg reports decoding issues: " + error);
+                                            if (error != "ffmpeg-timeout")
+                                            {
+                                                return filePaths;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine("ffmpeg decode looks OK (no fatal errors).");
+                                            if (++successCounter >= 2)
+                                            {
+                                                return filePaths;
+                                            }
+                                        }
+                                        // return filePaths;
                                     }
-                                    fileStreams[path].Write(data);
                                 }
                                 break;
                             default: // Not implemented, we don't have any uses for it
@@ -197,6 +240,146 @@ namespace GICutscenes.FileTypes
             foreach (BinaryWriter stream in fileStreams.Values) stream.Close();
             return filePaths;
         }
+        public Dictionary<string, List<string>> TryDemux(bool videoExtract, bool audioExtract, string outputDir)
+        {
+
+            FileStream filePointer = File.OpenRead(_path);  // TODO: Use a binary reader
+            long fileSize = filePointer.Length;
+            Info info = new();
+            Console.WriteLine($"Demuxing {_filename} : extracting video and audio...");
+            int frameCounter = 0;
+            int successCounter = 0;
+            Dictionary<string, BinaryWriter> fileStreams = new(); // File paths as keys
+            Dictionary<string, List<string>> filePaths = new();
+            string path;
+            byte[] videoFrames = [];
+            while (fileSize > 0)
+            {
+                byte[] byteBlock = new byte[32];
+                filePointer.Read(byteBlock, 0, byteBlock.Length);
+                fileSize -= 32;
+
+                info.signature = Tools.Bswap(BitConverter.ToUInt32(byteBlock, 0));
+                info.dataSize = Tools.Bswap(BitConverter.ToUInt32(byteBlock, 4));
+                info.dataOffset = byteBlock[9];
+                info.paddingSize = Tools.Bswap(BitConverter.ToUInt16(byteBlock, 10));
+                info.chno = byteBlock[12];
+                info.dataType = byteBlock[15];
+                info.frameTime = Tools.Bswap(BitConverter.ToUInt32(byteBlock, 16));
+                info.frameRate = Tools.Bswap(BitConverter.ToUInt32(byteBlock, 20));
+
+                int size = (int)(info.dataSize - info.dataOffset - info.paddingSize);
+                filePointer.Seek(info.dataOffset - 0x18, SeekOrigin.Current);
+                byte[] data = new byte[size];
+                filePointer.Read(data);
+                filePointer.Seek(info.paddingSize, SeekOrigin.Current);
+                fileSize -= info.dataSize - 0x18;
+
+                switch (info.signature)
+                {
+                    case 0x43524944: // CRID
+
+                        break;
+                    case 0x40534656: // @SFV    Video block
+                        switch (info.dataType)
+                        {
+                            case 0:
+                                if (videoExtract)
+                                {
+                                    MaskVideo(ref data, size);
+                                    videoFrames = [.. videoFrames, ..data];
+                                    // path = Path.Combine(outputDir, _filename[..^4] + ".ivf");
+                                    // if (!fileStreams.ContainsKey(path))
+                                    // {
+                                    //     fileStreams.Add(path, new BinaryWriter(new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read)));
+                                    //     if (!filePaths.ContainsKey("ivf")) filePaths.Add("ivf", new List<string> { path });
+                                    //     else filePaths["ivf"].Add(path);
+                                    // }
+                                    // fileStreams[path].Write(data);
+
+                                    
+                                    if (++frameCounter % 100 == 0)
+                                    {
+                                        // use ffmpeg to check validity
+
+                                        // fileStreams[path].Flush();
+                                        // ((FileStream)fileStreams[path].BaseStream).Flush(true); // .NET Core / .NET 5+ 可选，强制写入盘（如果可用）
+                                        // // 调用验证函数（等待不超过 1 秒）
+                                        // var (ok, stderr) = Checker.ValidateIvfWithFfmpeg(path, 1000);
+                                        // if (!ok)
+                                        // {
+                                        //     Console.WriteLine($"Warning: At frame {counter}, ffmpeg reported decode issues for {path}: {stderr?.Split('\n').FirstOrDefault()}");
+                                        //     // return filePaths;
+                                        // }
+                                        // // return filePaths;
+
+                                        // combine List<byte[]> into a single byte[] and validate
+                                        Console.WriteLine($"Validating extracted video frames at frame {frameCounter}...");
+                                        var (ok, stderr) = Checker.ValidateIvfWithFfmpegBytes(videoFrames, 500);
+
+                                        if (!ok)
+                                        {
+                                            var error = stderr.Split('\n')[0];
+                                            Console.WriteLine("ffmpeg reports decoding issues: " + error);
+                                            if (error != "ffmpeg-timeout")
+                                            {
+                                                return filePaths;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine("ffmpeg decode looks OK (no fatal errors).");
+                                            if (++successCounter >= 2)
+                                            {
+                                                return filePaths;
+                                            }
+                                        }
+                                        // return filePaths;
+                                    }
+                                }
+                                break;
+                            default: // Not implemented, we don't have any uses for it
+                                break;
+                        }
+                        break;
+
+                    case 0x40534641: // @SFA    Audio block
+                        switch (info.dataType)
+                        {
+                            case 0:
+                                if (audioExtract)
+                                {
+                                    // Might need some extra work if the audio has to be decrypted during the demuxing
+                                    // (hello AudioMask)
+                                    path = Path.Combine(outputDir, _filename[..^4] + $"_{info.chno}.hca");
+                                    if (!fileStreams.ContainsKey(path))
+                                    {
+                                        fileStreams.Add(path, new BinaryWriter(new FileStream(path, FileMode.Create, FileAccess.Write)));
+                                        if (!filePaths.ContainsKey("hca")) filePaths.Add("hca", new List<string> { path });
+                                        else filePaths["hca"].Add(path);
+                                    }
+                                    fileStreams[path].Write(data);
+                                }
+                                break;
+                            default: // No need to implement it, we lazy
+                                break;
+                        }
+                        break;
+
+                    case 0x40435545: // @CUE - Might be used to play a certain part of the video, but shouldn't be needed anyway (appears in cutscene Cs_Sumeru_AQ30161501_DT)
+                        Console.WriteLine("@CUE field detected in USM, skipping as we don't need it");
+                        break;
+                    default:
+                        Console.WriteLine("Signature {0} unknown, skipping...", info.signature);
+                        break;
+                }
+            }
+            // Closing Streams
+            filePointer.Close();
+            foreach (BinaryWriter stream in fileStreams.Values) stream.Close();
+            return filePaths;
+        }
+
     }
 
 }
