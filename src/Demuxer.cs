@@ -91,16 +91,17 @@ namespace GICutscenes
         }
         public static bool ScanKeyOfUsm(string filenameArg, ulong resume = 1000000000000000, ulong end = 9999999999999999)
         {
-            // Console.WriteLine($"Demuxer.TryDemux called with resume={resume}, end={end}");
             if (!File.Exists(filenameArg)) throw new FileNotFoundException($"File {filenameArg} doesn't exist...");
             string filename = Path.GetFileName(filenameArg);
+            Console.WriteLine("");
+            Console.WriteLine("");
+            Console.WriteLine($"================================================================");
+            Console.WriteLine($"Starting to scan key for {filename[..^4]} from {resume} to {end}...");
+            Console.WriteLine($"================================================================");
             ulong fkey = EncryptionKeyInFilename(filename);
+            ulong lastKey = resume - 1;
             for (ulong vkey = resume; vkey <= end; vkey++)
             {
-                if (vkey % 100 == 0)
-                {
-                    Console.WriteLine($"Trying vkey: {vkey}");
-                }
                 ulong finalKey = 0x100000000000000;
                 if ((fkey + vkey & 0xFFFFFFFFFFFFFF) != 0) finalKey = fkey + vkey & 0xFFFFFFFFFFFFFF;
                 (byte[], byte[])? split = KeySplitter(finalKey);
@@ -113,8 +114,20 @@ namespace GICutscenes
                 bool success = file.TryDemux();  // TODO: Return file list for easier parsing
                 if (success)
                 {
-                    Console.WriteLine($"Success with vkey: {vkey}");
+                    Console.WriteLine("");
+                    Console.WriteLine($"================================================================");
+                    Console.WriteLine($"Found key for {filename.ToString()[..^4]} !");
+                    Console.WriteLine(vkey);
+                    Console.WriteLine($"================================================================");
                     return success;
+                }
+
+                if (vkey % 100 == 0 && vkey != resume)
+                {
+                    Console.WriteLine($"No valid key found from {lastKey + 1} to {vkey}.");
+                    Console.WriteLine($"================================================================");
+
+                    lastKey = vkey;
                 }
             }
             return false;

@@ -276,9 +276,15 @@ namespace GICutscenes.FileTypes
                                     // combine List<byte[]> into a single byte[] and validate
                                     // Console.WriteLine($"Validating extracted video frames at frame {frameCounter}...");
 
+                                    var okByUtils = VP9ValidatorV3.ValidateVp9Superframe(videoFrames);
+                                    if (!okByUtils)
+                                    {
+                                        // Console.WriteLine("VP9Validator reports decoding issues.");
+                                        filePointer.Close();
+                                        return false;
+                                    }
                                     var (ok, stderr) = Checker.ValidateIvfWithFfmpegBytes(videoFrames, 500);
                                     // Console.WriteLine("");
-                                    // var okByUtils = VP9ValidatorV3.ValidateVp9Superframe(videoFrames);
                                     // // Console.WriteLine(errByUtils);
                                     // Console.WriteLine($"ffmpeg: {ok}, {stderr}. Utils: {okByUtils}");
                                     // Console.WriteLine(BitConverter.ToString(videoFrames));

@@ -118,13 +118,11 @@ namespace GICutscenes
             var resumeOption = new Option<ulong>(
                 name: "--resume",
                 description: "The key start value when trying to demux.");
-            resumeOption.SetDefaultValue(1000000000000000);
             resumeOption.AddAlias("-r");
 
             var endOption = new Option<ulong>(
                 name: "--end",
                 description: "The key end value when trying to demux.");
-            endOption.SetDefaultValue(9999999999999999);
             endOption.AddAlias("-en");
 
             var rootCommand = new RootCommand("A command line program playing with the cutscenes files (USM) from Genshin Impact.");
@@ -312,15 +310,16 @@ namespace GICutscenes
                 Directory.Delete(Path.Combine(outputArg, "Subs"), true);
             }
         }
-        private static bool ScanKeyOfUsm(FileInfo file, ulong resume = 1000000000000000, ulong end = 9999999999999999)
+        private static bool ScanKeyOfUsm(FileInfo file, ulong? resume, ulong? end)
         {
-            // Console.WriteLine($"Program.TryDemux called with resume={resume}, end={end}");
+            if (resume is null || resume <= 1000000000000000 || resume >= 9999999999999999) resume = 1000000000000000;
+            if (end is null || end <= resume || end >= 9999999999999999) end = 9999999999999999;
             if (file == null) throw new ArgumentNullException(nameof(file), "No file provided.");
             if (!file.Exists) throw new ArgumentException("File {0} does not exist.", file.Name);
             if (!file.Name.EndsWith(".usm"))
                 throw new ArgumentException($"File {file.Name} provided isn't a .usm file.");
             
-            return Demuxer.ScanKeyOfUsm(file.FullName, resume, end);
+            return Demuxer.ScanKeyOfUsm(file.FullName, resume.Value, end.Value);
         }
         private static void BatchDemuxCommand(DirectoryInfo inputDir, DirectoryInfo? outputDir, string engine, bool merge, bool subs, bool noCleanup, string audioFormat, string videoFormat, string audioLang)
         {
