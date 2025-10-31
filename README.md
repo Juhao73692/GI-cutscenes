@@ -1,4 +1,18 @@
-﻿# GI-cutscenes
+﻿## Notice
+
+This project is a fork of the original [**GI-cutscenes** by ToaHartor](https://github.com/ToaHartor/GI-cutscenes).  
+It introduces an experimental feature for **brute-forcing encryption keys**, intended as a technical exploration rather than a practical solution.  
+At its current stage, the implementation is **highly inefficient and largely impractical**, since it relies on ffmpeg to check the validity of a VP9 video, serving primarily as a foundation for future refinement and research.  
+
+The next milestone is to remove the dependency on **FFmpeg** by implementing an internal validation mechanism for **VP9 video streams**, allowing the program to detect corrupted or invalid frames directly during parsing.
+
+Contributions, suggestions, and discussions are most welcome to help bring this experimental branch closer to usability.
+
+---
+
+*Original README continues below:*
+
+# GI-cutscenes
 
 A command line program playing with the cutscenes files (USM) from Genshin Impact.
 
