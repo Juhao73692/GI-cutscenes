@@ -155,12 +155,6 @@ namespace GICutscenes.FileTypes
                                         else filePaths["ivf"].Add(path);
                                     }
                                     fileStreams[path].Write(data);
-                                    // if(counter ++ >= 1)
-                                    // {
-                                    //     fileStreams[path].Flush();
-                                    //     ((FileStream)fileStreams[path].BaseStream).Flush(true); // .NET Core / .NET 5+ 可选，强制写入盘（如果可用）
-                                    //     return filePaths;
-                                    // }
                                 }
                                 break;
                             default: // Not implemented, we don't have any uses for it
@@ -279,19 +273,19 @@ namespace GICutscenes.FileTypes
                                     var okByUtils = VP9ValidatorV3.ValidateVp9Superframe(videoFrames);
                                     if (!okByUtils)
                                     {
-                                        // Console.WriteLine("VP9Validator reports decoding issues.");
+                                        Console.WriteLine("VP9Validator reports decoding issues.");
                                         filePointer.Close();
                                         return false;
                                     }
                                     var (ok, stderr) = Checker.ValidateIvfWithFfmpegBytes(videoFrames, 500);
                                     // Console.WriteLine("");
-                                    // // Console.WriteLine(errByUtils);
+                                    // Console.WriteLine(errByUtils);
                                     // Console.WriteLine($"ffmpeg: {ok}, {stderr}. Utils: {okByUtils}");
                                     // Console.WriteLine(BitConverter.ToString(videoFrames));
                                     if (!ok)
                                     {
-                                        // var error = stderr.Split('\n')[0];
-                                        // Console.WriteLine("ffmpeg reports decoding issues: " + error);
+                                        var error = stderr.Split('\n')[0];
+                                        Console.WriteLine("ffmpeg reports decoding issues: " + error);
                                         // if (error != "ffmpeg-timeout")
                                         {
                                             filePointer.Close();
