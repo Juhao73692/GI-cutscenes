@@ -407,3 +407,6 @@ Properties/
 .editorconfig
 # Release files
 .zip
+
+# Demux Outputs
+output/
